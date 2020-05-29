@@ -60,6 +60,7 @@ extension ViewController {
         ]
         
         receivedMessages.forEach { (message) in
+//            self.messageSource.append(message)
             self.assembleToGroup(message: message, isReceiving: true)
         }
     }
@@ -80,7 +81,7 @@ extension ViewController {
         }
         
         inputToolbar.finishSendingMessage = { message in
-            let message = ChatMessage(message: message, timeStamp: self.dateFormatter.string(from: Date()), isSender: true)
+            let message = ChatMessage(message: message, timeStamp: "28/05/2020", isSender: true)
             self.assembleToGroup(message: message)
         }
         
@@ -190,33 +191,25 @@ extension ViewController {
     
     // Method to update the current chat
     func assembleToGroup(message: ChatMessage, isReceiving: Bool = false) {
-        let dates = Dictionary(grouping: messageSource) { (element) -> Date in
+        var dates = Dictionary(grouping: messageSource) { (element) -> Date in
             return dateFormatter.date(from: element.timeStamp) ?? Date()
         }
-        if dates.count > 0 {
-            let sorted = dates.keys.sorted()
-            sorted.forEach { (key) in // Finding if the date is same
-                let result = dates.keys.contains { (date) -> Bool in
-                    return date.compare(key) == .orderedSame
-                }
-                if result { // Finding the last section and updating the new message
-                    let value = dates[key]
-                    let index = messages.firstIndex(where: { $0.count == value?.count })
-                                    
-                    messageSource.append(message)
-                    messages[index ?? 0] = messageSource
-                    
-                } else {
-                    let value = dates[key]
-                    messages.append(value ?? [])
-                }
-                
-                self.tableView.insertRows(at: [IndexPath(row: messageSource.count - 1, section: messages.count - 1)], with: isReceiving ? .left : .right)
-            }
-        } else {
+        let dateFromMessage: Date = dateFormatter.date(from: message.timeStamp) ?? Date()
+        let result = dates.keys.contains(dateFromMessage)
+        if result {
+            let indexOfDate = messages.firstIndex(where: { dateFormatter.date(from: $0.first!.timeStamp)!.compare(dateFromMessage) == .orderedSame })
+            var values = messages[indexOfDate ?? 0]
+            values.append(message)
             messageSource.append(message)
-            assembleToGroups()
+            messages[indexOfDate ?? 0] = values
+        } else {
+            dates[dateFromMessage] = [message]
+            messageSource.append(message)
+            messages.append(dates[dateFromMessage] ?? [])
         }
+        tableView.reloadData()
+
+        scrollToBottom()
     }
     
     func scrollToBottom() {
