@@ -10,11 +10,9 @@ import UIKit
 
 class SenderCell: UITableViewCell {
     
-    @IBOutlet weak var message: UITextView!
-    
-    @IBOutlet weak var messageBackground: UIImageView!
-    @IBOutlet weak var maxWidth: NSLayoutConstraint!
-    
+    @IBOutlet private weak var message: UITextView!
+    @IBOutlet private weak var messageBackground: UIImageView!
+    @IBOutlet private weak var maxWidth: NSLayoutConstraint!
     
 
     override func awakeFromNib() {
@@ -26,6 +24,10 @@ class SenderCell: UITableViewCell {
         
         maxWidth.constant = UIScreen.main.bounds.size.width * 0.7
         
+    }
+    
+    func setupMessage(with object: Message) {
+        self.message.text = object.message
     }
 
     override func setSelected(_ selected: Bool, animated: Bool) {

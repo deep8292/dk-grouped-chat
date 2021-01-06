@@ -14,16 +14,34 @@ struct ChatMessage {
     let isSender: Bool
 }
 
+struct Message {
+    let message: String
+    let date: Date
+    let isSender: Bool
+}
+
 
 class ViewController: UIViewController {
     @IBOutlet weak var tableView: UITableView!
-    @IBOutlet weak var inputToolbar: DKTextInputBar!
+    @IBOutlet weak var inputToolbar: DKInputBar!
     
     @IBOutlet weak var toolbarHeight: NSLayoutConstraint!
-    @IBOutlet weak var bottomConstraint: NSLayoutConstraint!
+    
+    private var isBezleLessDevice = false
+    
+    @IBOutlet weak var bottomConstraint: NSLayoutConstraint! {
+        didSet {
+            if UIScreen.main.nativeBounds.height > 2208 || UIScreen.main.nativeBounds.height >= 1792  {
+                isBezleLessDevice = true
+                bottomConstraint.constant = bottomConstraint.constant + 16
+            }
+        }
+    }
     
     private var messageSource: [ChatMessage] = []
     private var messages = [[ChatMessage]]()
+    
+    private var groupedMessages = [[Message]]()
     
     
     lazy var dateFormatter: DateFormatter = {
@@ -41,7 +59,6 @@ class ViewController: UIViewController {
 
 // MARK: Register Keyboard Notifications
 extension ViewController {
-    
     private func registerKeyboardNotifcations() {
         NotificationCenter.default.addObserver(self, selector: #selector(ViewController.keyboardShown), name: UIResponder.keyboardWillShowNotification, object: nil)
         
@@ -54,14 +71,13 @@ extension ViewController {
     
     @IBAction func didTapRefresh(_ sender: Any) {
         let receivedMessages = [
-            ChatMessage(message: "Hi", timeStamp: dateFormatter.string(from: Date()), isSender: false),
-            ChatMessage(message: "I am good", timeStamp: dateFormatter.string(from: Date()), isSender: false),
-            ChatMessage(message: "How are you?", timeStamp: dateFormatter.string(from: Date()), isSender: false),
+            Message(message: "Hi", date: Date(), isSender: false),
+            Message(message: "I am a hard coded bot 😄", date: Date(), isSender: false)
         ]
         
-        receivedMessages.forEach { (message) in
-//            self.messageSource.append(message)
-            self.assembleToGroup(message: message, isReceiving: true)
+        receivedMessages.forEach { [weak self] (message) in
+            guard let strongSelf = self else { return } // Always do that when using blocks
+            strongSelf.insertMessageInList(chat: message)
         }
     }
 }
@@ -71,20 +87,28 @@ extension ViewController {
     
     private func setupToolbar() {
         
-        inputToolbar.didChangeHeight = { textView in
-            let size = CGSize(width: self.view.frame.size.width, height: .infinity)
-            
-            let estimatedSize = textView.sizeThatFits(size)
-
-            self.toolbarHeight.constant = estimatedSize.height + 16
-            self.scrollToBottom()
+        inputToolbar.didBeginEdit = {_ in
+            UIView.animate(withDuration: 0, delay: 0, options: .curveEaseInOut, animations: {
+                self.view.layoutIfNeeded()
+                self.scrollToBottom()
+            }, completion: nil)
         }
         
-        inputToolbar.finishSendingMessage = { message in
-            let message = ChatMessage(message: message, timeStamp: "28/05/2020", isSender: true)
-            self.assembleToGroup(message: message)
+        inputToolbar.didChangeHeight = { height in
+            if height > self.toolbarHeight.constant {
+                UIView.animate(withDuration: 0.1) {
+                    self.view.layoutIfNeeded()
+                    self.scrollToBottom()
+                }
+            }
+            self.toolbarHeight.constant = height
         }
         
+        inputToolbar.finishSendingMessage = { [weak self] message in
+            guard let strongSelf = self else { return } // Always do that when using blocks
+            let object = Message(message: message, date: Date(), isSender: true)
+            strongSelf.insertMessageInList(chat: object, isSending: true)
+        }
     }
 }
 
@@ -92,35 +116,15 @@ extension ViewController {
 extension ViewController: UITableViewDataSource {
     
     func numberOfSections(in tableView: UITableView) -> Int {
-        return messages.count
+        return groupedMessages.count
     }
     
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return messages[section].count
+        return groupedMessages[section].count
     }
 
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        
-        let message = messages[indexPath.section]
-        
-        let isSender = message[indexPath.row].isSender
-        
-        if isSender {
-            guard let cell = tableView.dequeueReusableCell(withIdentifier: "SenderCell") as? SenderCell else {
-                return UITableViewCell()
-            }
-            cell.message.text = message[indexPath.row].message
-            
-            return cell
-        }
-        else {
-            guard let cell = tableView.dequeueReusableCell(withIdentifier: "ReceiverCell") as? ReceiverCell else {
-                return UITableViewCell()
-            }
-            cell.message.text = message[indexPath.row].message
-            
-            return cell
-        }
+        return getCellForIndexPath(with: indexPath)
     }
 }
 
@@ -128,18 +132,7 @@ extension ViewController: UITableViewDataSource {
 extension ViewController: UITableViewDelegate {
     
     func tableView(_ tableView: UITableView, viewForHeaderInSection section: Int) -> UIView? {
-        
-        let dateLabel = DateHeaderLabel()
-        dateLabel.translatesAutoresizingMaskIntoConstraints = false
-        dateLabel.text = messages[section].first?.timeStamp
-        
-        let containerView = UIView()
-        containerView.addSubview(dateLabel)
-    
-        dateLabel.centerXAnchor.constraint(equalTo: containerView.centerXAnchor).isActive = true
-        dateLabel.centerYAnchor.constraint(equalTo: containerView.centerYAnchor).isActive = true
-    
-        return containerView
+        createDateHeader(with: section)
     }
     
     func tableView(_ tableView: UITableView, heightForHeaderInSection section: Int) -> CGFloat {
@@ -161,7 +154,7 @@ extension ViewController {
         let keyboardFrame = keyboardSize.cgRectValue
         
         let isKeyboardShowing = notification.name ==  UIResponder.keyboardWillShowNotification
-        bottomConstraint.constant =  isKeyboardShowing ? keyboardFrame.height : 0
+        bottomConstraint.constant =  isKeyboardShowing ? keyboardFrame.height : isBezleLessDevice ? 16 : 8
         
         UIView.animate(withDuration: 0, delay: 0, options: .curveEaseInOut, animations: {
             self.view.layoutIfNeeded()
@@ -170,55 +163,101 @@ extension ViewController {
     }
 }
 
-
-// MARK: Table Helper Methods
+// MARK: TableView UI Helpers
 extension ViewController {
     
-    // Call this method when getting all the messages
-    func assembleToGroups() {
+    private func createDateHeader(with section: Int) -> UIView {
+        guard
+            let date = groupedMessages[section].first?.date
+        else { return UIView() }
         
-        let dates = Dictionary(grouping: messageSource) { (element) -> Date in
-            return dateFormatter.date(from: element.timeStamp) ?? Date()
-        }
+        let dateLabel = DateHeaderLabel()
+        dateLabel.translatesAutoresizingMaskIntoConstraints = false
+        dateLabel.setDate(with: date.createDateForHeader())
         
-        let sorted = dates.keys.sorted()
-        sorted.forEach { (key) in
-            let value = dates[key]
-            messages.append(value ?? [])
-        }
-        tableView.reloadData()
+        let containerView = UIView()
+        containerView.addSubview(dateLabel)
+        dateLabel.centerXAnchor.constraint(equalTo: containerView.centerXAnchor).isActive = true
+        dateLabel.centerYAnchor.constraint(equalTo: containerView.centerYAnchor).isActive = true
+    
+        return containerView
     }
     
-    // Method to update the current chat
-    func assembleToGroup(message: ChatMessage, isReceiving: Bool = false) {
-        var dates = Dictionary(grouping: messageSource) { (element) -> Date in
-            return dateFormatter.date(from: element.timeStamp) ?? Date()
-        }
-        let dateFromMessage: Date = dateFormatter.date(from: message.timeStamp) ?? Date()
-        let result = dates.keys.contains(dateFromMessage)
-        if result {
-            let indexOfDate = messages.firstIndex(where: { dateFormatter.date(from: $0.first!.timeStamp)!.compare(dateFromMessage) == .orderedSame })
-            var values = messages[indexOfDate ?? 0]
-            values.append(message)
-            messageSource.append(message)
-            messages[indexOfDate ?? 0] = values
+    private func getCellForIndexPath<T>(with indexPath: IndexPath) -> T {
+        let message = groupedMessages[indexPath.section][indexPath.row]
+        
+        if message.isSender {
+            guard let cell = tableView.dequeueReusableCell(withIdentifier: "SenderCell") as? SenderCell else {
+                return UITableViewCell() as! T
+            }
+            cell.setupMessage(with: message)
+            return cell as! T
         } else {
-            dates[dateFromMessage] = [message]
-            messageSource.append(message)
-            messages.append(dates[dateFromMessage] ?? [])
-        }
-        tableView.reloadData()
-
-        scrollToBottom()
-    }
-    
-    func scrollToBottom() {
-        if messages.count > 1 {
-            
-            let lastIndex = messages.count - 1
-            let indexRow = messages[lastIndex].count
-            
-            tableView.scrollToRow(at: IndexPath(row: indexRow - 1, section: lastIndex), at: .bottom, animated: false)
+            guard let cell = tableView.dequeueReusableCell(withIdentifier: "ReceiverCell") as? ReceiverCell else {
+                return UITableViewCell() as! T
+            }
+            cell.setupMessage(with: message)
+            return cell as! T
         }
     }
 }
+
+// MARK: List Populator Helpers
+extension ViewController {
+    
+    private func insertMessageInList(chat: Message, isSending: Bool = false) {
+        var lastDate = Date()
+        let lastSection = groupedMessages.count
+        if groupedMessages.count > 0 {
+            guard let d = groupedMessages[lastSection - 1].last?.date else { return }
+            lastDate = d
+        }
+        
+        if dateFormatter.string(from: lastDate) == dateFormatter.string(from: Date()) && groupedMessages.count > 0  {
+            var lastArray = groupedMessages[lastSection - 1]
+            lastArray.append(chat)
+            
+            groupedMessages.remove(at: lastSection - 1)
+            groupedMessages.insert(lastArray, at: lastSection - 1)
+
+            tableView.insertRows(at: [IndexPath(row: groupedMessages[lastSection - 1].count - 1, section: lastSection - 1)], with: isSending ? .right : .left)
+        } else {
+            groupedMessages.append([chat])
+            
+            let index = IndexSet(integer: groupedMessages.count - 1)
+            
+            tableView.insertSections(index, with: .none)
+            
+//            tableView.performBatchUpdates {
+//                tableView.insertSections(index, with: isSending ? .right : .left)
+//            } completion: { (update) in
+//                print(update)
+//            }
+        }
+        
+        UIView.animate(withDuration: 0) {
+            self.view.layoutIfNeeded()
+            self.scrollToBottom()
+        }
+    }
+    
+    private func scrollToTop() {
+        if groupedMessages.count >= 1 {
+            let lastIndex = self.groupedMessages.count - 1
+            let indexRow = self.groupedMessages[lastIndex].count
+            
+            self.tableView.scrollToRow(at: IndexPath(row: indexRow - 1, section: lastIndex), at: .top, animated: true)
+        }
+    }
+    
+    private func scrollToBottom() {
+        if groupedMessages.count >= 1 {
+            let lastIndex = self.groupedMessages.count - 1
+            let indexRow = self.groupedMessages[lastIndex].count
+            
+            self.tableView.scrollToRow(at: IndexPath(row: indexRow - 1, section: lastIndex), at: .bottom, animated: true)
+        }
+    }
+}
+
+

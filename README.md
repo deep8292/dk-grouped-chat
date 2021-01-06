@@ -1,7 +1,5 @@
-# Grouped Chat
+A pure swift based application without any usage of third party dependency. Application simplifies the way of creating chat bubbles and expanding text input bars just like famous chat apps. Another little comes in with the application is grouping of messages based on Date. Hence, I named it GroupedChat; Tada!
 
-### - Simple pseudocode to update messages based on dates
+### - Sample Images
 ![images](https://github.com/deep8292/dk-grouped-chat/blob/master/GroupedChat/Images/Grouped%20Chat.png)
-### - Create chat bubbles via Storyboard
-![images](https://github.com/deep8292/dk-grouped-chat/blob/master/GroupedChat/Images/Storyboard.png)
-
+![images](https://github.com/deep8292/dk-grouped-chat/blob/master/GroupedChat/Images/TextView.png)

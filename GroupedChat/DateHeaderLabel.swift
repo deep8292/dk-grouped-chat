@@ -30,4 +30,9 @@ class DateHeaderLabel: UILabel {
         layer.masksToBounds = true
         return CGSize(width: originalSize.width + 16, height: height)
     }
+    
+    func setDate(with date: String) {
+        self.text = date
+    }
 }
+
